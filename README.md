@@ -40,20 +40,6 @@ python3 --version
 
 Postman should already be installed before you start the route-building part of the session. We use it right after the API concepts section so you can verify each endpoint as soon as it is introduced.
 
-## Why Postman Comes Early
-
-The slides introduce Postman before the FastAPI route examples on purpose.
-
-That lets you practice the habit of testing an API as soon as you understand the request and response shape. Instead of only reading code, you will also see the endpoint behavior directly:
-
-- request method,
-- URL,
-- query parameters,
-- request body,
-- response body,
-- and status behavior.
-
-This makes the session much more hands-on and easier to follow.
 
 ## Getting Started
 
@@ -594,6 +580,255 @@ What to check:
 
 - The response should return a new `id`.
 - After the request, send `GET /users` again and confirm the new user appears in the list for the current server session.
+
+## Next Steps
+
+This project is a good starting point, but it is still running in a very local setup. The next layer of learning is to understand how applications move from your own machine to a real network and eventually to the public internet. That shift is where backend development starts to feel practical instead of just theoretical, because the same app can behave very differently depending on where it is running and who is allowed to reach it.
+
+### 1. From loopback to the internet
+
+Right now, the app runs on the loopback address, which means it is only reachable from the same machine. That is why `http://127.0.0.1:8000` works for local development. The loopback address is a special address that always points back to your own computer, so it is perfect for testing and debugging, but it is intentionally isolated from the rest of the network.
+
+To make the app reachable from other devices on your network, start Uvicorn with `0.0.0.0` as the host:
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+`0.0.0.0` means "listen on every network interface." That is the key difference between an app that only works on your own machine and an app that another device on the same Wi-Fi can reach.
+
+After starting the server this way, find the machine’s private IP address.
+
+On macOS or Linux, run:
+
+```bash
+ifconfig
+```
+
+On Windows, run:
+
+```bash
+ipconfig
+```
+
+Look for the active adapter’s IPv4 address, usually something like `192.168.x.x` or `10.x.x.x`.
+
+Now, from another device on the same network, open:
+
+```text
+http://192.168.x.x:8000
+```
+
+That is local network hosting. The app is still running on your machine, but the private IP lets other devices on the same network reach it.
+
+If you want to expose the app to the internet without deploying it to a VPS yet, use ngrok.
+
+The basic flow is:
+
+1. Install ngrok.
+2. Sign in and add your ngrok auth token if it asks for one.
+3. Start the FastAPI app on port `8000`.
+4. Open a tunnel to that port.
+
+```bash
+ngrok http 8000
+```
+
+ngrok will give you a public URL such as `https://xxxx.ngrok-free.app`. Anyone who opens that URL is forwarded to your local FastAPI app. This is useful for demos, sharing with classmates, testing webhooks, or showing a project without setting up a full server.
+
+This is the path from local development to real deployment:
+
+- `127.0.0.1` for only your own machine,
+- private IP for devices on the same network,
+- ngrok for a public tunnel to your local machine,
+- public IP or domain name for a real hosted server.
+
+Once you understand that progression, deployment becomes much less mysterious.
+
+### 2. How the internet works
+
+To understand backend development deeply, it helps to learn the basics of networking. The internet is built on connected devices exchanging data through protocols, and HTTP is the protocol most web apps use. A browser does not magically know where your app lives; it resolves a name or IP address, opens a network connection, and then speaks a protocol that both sides understand.
+
+TCP is the transport layer that carries HTTP traffic. In brief, TCP makes sure data moves reliably between two machines. It establishes a connection, keeps track of what was sent, retransmits lost packets, and delivers data in order. You normally do not write TCP code in a beginner FastAPI app, but HTTP depends on it.
+
+In a typical HTTP flow:
+
+- the browser or frontend sends a request,
+- the server receives it and processes it,
+- the server sends back a response,
+- and the client renders or uses that response.
+
+This request-response cycle is the crux of web development. Once you understand URLs, IP addresses, ports, TCP connections, and HTTP methods like `GET` and `POST`, a lot of backend behavior starts making sense.
+
+The important pieces fit together like this:
+
+- The URL tells the client where to go and what resource to ask for.
+- The IP address identifies the server machine on the network.
+- The port identifies which application on that machine should receive the request.
+- TCP provides a reliable connection so the data arrives in the correct order.
+- HTTP defines the language of the conversation, including methods, headers, status codes, and body data.
+
+HTTP is where backend developers spend most of their time, so it helps to know what is actually inside a request and response.
+
+An HTTP request usually contains:
+
+- a method, such as `GET`, `POST`, `PUT`, `PATCH`, or `DELETE`,
+- a path, such as `/users` or `/users/3`,
+- optional query parameters, such as `?ageLimit=30`,
+- headers, which carry metadata like `Content-Type` or authentication tokens,
+- and an optional body, which is commonly JSON for `POST` and `PUT` requests.
+
+An HTTP response usually contains:
+
+- a status code,
+- headers,
+- and a body.
+
+The status code is the first thing you should check when a request fails. Some common ones are:
+
+- `200` for success,
+- `201` when something is created,
+- `400` when the client sends invalid data,
+- `404` when the route or resource is not found,
+- and `500` when the server hits an unexpected error.
+
+Headers matter because they tell the client how to interpret the response. For example, `Content-Type: application/json` tells the client that the body is JSON. That is why the frontend can call `response.json()` and why tools like Postman can format the result properly.
+
+When you send a `GET` request, you are usually asking for data. When you send a `POST` request, you are usually asking the server to create or process something. The response then tells you whether the request worked, failed, or needs more information. That is the core pattern behind almost every web app.
+
+### 3. Why databases matter
+
+This project stores data in a file and loads it into memory, which is fine for learning. But file-based storage has limits:
+
+- it is harder to query efficiently,
+- concurrent writes can become messy,
+- data can be lost when the process restarts,
+- and it does not scale well for real applications.
+
+That is why applications usually use databases instead. A file works when the data is tiny and the app is simple, but it becomes fragile once more users, more updates, and more relationships appear. Two requests updating the same file at the same time can conflict, and reading or filtering data often becomes slow because the entire file has to be loaded and searched manually.
+
+With a database, the storage layer is built for these problems. The application server talks to a database server over the network, sends queries, and reads results back. This separation makes storage more reliable, more structured, and much easier to grow with the application. The app server handles your business logic, while the database server specializes in storing, indexing, filtering, and protecting the data.
+
+To make this concrete, you can migrate this project from a JSON file to SQLite, which is a lightweight database that stores everything in one local database file but still gives you real SQL queries and persistence.
+
+The current user objects already map cleanly to a database table:
+
+```json
+{
+  "id": 1,
+  "name": "Alice Johnson",
+  "age": 28,
+  "address": "123 Maple Street, Seattle",
+  "hobbies": ["Reading", "Hiking", "Photography"]
+}
+```
+
+A simple SQLite table for the same data could look like this:
+
+```sql
+CREATE TABLE users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  age INTEGER NOT NULL,
+  address TEXT NOT NULL,
+  hobbies TEXT NOT NULL
+);
+```
+
+Here, `hobbies` is stored as text. The normal approach is to serialize the Python list into JSON before inserting it into SQLite, then deserialize it back into a list when reading it out.
+
+That gives you a simple migration plan:
+
+1. Load the existing `data.json` file once.
+2. Create the SQLite table if it does not already exist.
+3. Insert each JSON user into the table.
+4. Replace the in-memory `users` list with SQL queries.
+5. Update `GET /users` to read from SQLite.
+6. Update `GET /users/{user_id}` to fetch one row by ID.
+7. Update `POST /users` to insert a new row.
+8. Keep the API response shape the same, even though the storage backend changed.
+
+Here is a minimal Python example using the built-in `sqlite3` module:
+
+```python
+import json
+import sqlite3
+
+connection = sqlite3.connect("users.db")
+cursor = connection.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS users (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name TEXT NOT NULL,
+	age INTEGER NOT NULL,
+	address TEXT NOT NULL,
+	hobbies TEXT NOT NULL
+)
+""")
+
+with open("data.json", "r") as file:
+	users = json.load(file)
+
+for user in users:
+	cursor.execute(
+		"INSERT OR IGNORE INTO users (id, name, age, address, hobbies) VALUES (?, ?, ?, ?, ?)",
+		(
+			user["id"],
+			user["name"],
+			user["age"],
+			user["address"],
+			json.dumps(user["hobbies"]),
+		),
+	)
+
+connection.commit()
+```
+
+Once the data is stored in SQLite, the backend can query only what it needs. For example, filtering by age becomes a SQL query such as `SELECT * FROM users WHERE age <= ?` instead of a Python list comprehension.
+
+The same `User` model from this project still applies:
+
+```python
+class User(BaseModel):
+	name: str
+	age: int
+	address: str
+	hobbies: List[str]
+```
+
+The difference is in storage, not in the API contract. The frontend can keep sending the same JSON, and the backend can keep returning the same kind of response, while SQLite handles persistence.
+
+If you want to make the migration cleaner, add a small helper to convert a database row back into the API format:
+
+```python
+def row_to_user(row):
+	return {
+		"id": row[0],
+		"name": row[1],
+		"age": row[2],
+		"address": row[3],
+		"hobbies": json.loads(row[4]),
+	}
+```
+
+That way, the route logic stays simple even after the storage layer changes.
+
+In a real backend, this usually means:
+
+- the application server receives the HTTP request,
+- it validates and prepares the data,
+- it sends a SQL or database query to the database server,
+- the database server returns the result,
+- and the application server formats the final HTTP response.
+
+That separation is one of the biggest ideas in backend architecture.
+
+### 4. Learn backend in depth
+
+If you want a deeper backend path after this workshop, check out ProCodrr’s backend course on [procodrr.com](https://procodrr.com). The site currently highlights their [Backend with Node.js](https://app.procodrr.com/web/checkout/66c86939c0a286ccc32c0d8b) course, which is a good next step for learning backend concepts beyond this starter FastAPI project.
+
+That kind of course is useful once you are comfortable with the basics in this repo, because it can take you from simple request handling into topics like routing structure, API design, database integration, authentication, and production-style backend patterns.
 
 ## Project Structure
 
